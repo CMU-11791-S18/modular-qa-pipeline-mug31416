@@ -2,6 +2,7 @@ import sys
 import json
 import re
 import numpy as np
+import argparse
 from sklearn.externals import joblib
 import math
 from collections import Counter
@@ -15,8 +16,6 @@ from MultinomialNaiveBayes import MultinomialNaiveBayes
 from SVM import SVM
 from Evaluator import Evaluator
 
-TOP_K_SNIPPETS = 5
-TRAIN_NEG_SAMPLE_QTY = 5
 
 STOP_WORDS = frozenset(('a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'can',
                         'for', 'from', 'have', 'if', 'in', 'is', 'it', 'may',
@@ -26,16 +25,26 @@ STOP_WORDS = frozenset(('a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'can',
 
 class Pipeline(object):
 
-    def __init__(self, trainFilePath, valFilePath, retrievalInstance, featurizerInstance, classifierInstance):
+    TOP_K_SNIPPETS = 5
+    TRAIN_NEG_SAMPLE_QTY = 5
+
+    def __init__(self, trainFilePath, valFilePath, valResultsPath, top,
+                 retrievalInstance, featurizerInstance, classifierInstance):
+
         self.retrievalInstance = retrievalInstance
         self.featurizerInstance = featurizerInstance
         self.classifierInstance = classifierInstance
+
         trainfile = open(trainFilePath, 'r')
         self.trainData = json.load(trainfile)
         trainfile.close()
+
         valfile = open(valFilePath, 'r')
         self.valData = json.load(valfile)
         valfile.close()
+
+        self.valResultsPath = valResultsPath
+        self.top = top
         self.question_answering()
 
     @staticmethod
@@ -136,7 +145,7 @@ class Pipeline(object):
             transform_list.sort(reverse=True)
 
             e = []
-            for t in transform_list[0:TOP_K_SNIPPETS]:
+            for t in transform_list[0:Pipeline.TOP_K_SNIPPETS]:
                 e.append(t[1])
 
             maxScore = transform_list[0][0] if transform_list else 0
@@ -190,7 +199,7 @@ class Pipeline(object):
                                                             answer_clean,
                                                             is_train)
 
-            maxQty = len(evidence) if not is_train else 1 + TRAIN_NEG_SAMPLE_QTY
+            maxQty = len(evidence) if not is_train else 1 + Pipeline.TRAIN_NEG_SAMPLE_QTY
             X.extend(evidence[0:maxQty])
             Y.extend(relevance[0:maxQty])
             quest_id += 1
@@ -224,23 +233,22 @@ class Pipeline(object):
         for answId in range(cand_qty):
             answProb[answId] = answFreq[answId]/quest_qty
 
-        TOP_P = 50
         boost = np.zeros(cand_qty)
         tmp = [(v, k) for k, v in answProb.items()]
         tmp.sort(reverse=True)
         s = 0
         freq_answ = set()
-        for i in range(TOP_P):
+        for i in range(self.top):
             s += tmp[i][0]
             answ_id = tmp[i][1]
             freq_answ.add(answ_id)
             #boost[] = 1e5
-        print('Top %d sum %g freq answ set qty %d' % (TOP_P, s, len(freq_answ)))
+        print('Top %d sum %g freq answ set qty %d' % (self.top, s, len(freq_answ)))
 
 
-        X_train, Y_train = self.makeXY(self.trainData['questions'][0:5000], candidate_answers,
+        X_train, Y_train = self.makeXY(self.trainData['questions'][0:100], candidate_answers,
                                        freq_answ, is_train=True)
-        X_val, Y_val_true = self.makeXY(self.valData['questions'][0:500], candidate_answers,
+        X_val, Y_val_true = self.makeXY(self.valData['questions'][0:100], candidate_answers,
                                        freq_answ, is_train=False)
 
         # featurization
@@ -261,23 +269,76 @@ class Pipeline(object):
 
         print(pred_class)
         print(true_class)
+        print(np.mean(true_class == pred_class))
 
         self.evaluatorInstance = Evaluator()
-        print(np.mean(true_class == pred_class))
         a =  self.evaluatorInstance.getAccuracy(true_class, pred_class)
         p,r,f = self.evaluatorInstance.getPRF(true_class, pred_class)
         print("Accuracy: " + str(a))
-        print("Precision: " + str(p))
-        print("Recall: " + str(r))
-        print("F-measure: " + str(f))
+        print("Precision: " + str(p)) #corrected from print("Precision: " + str(a))
+        print("Recall: " + str(r)) #corrected from print("Recall: " + str(a))
+        print("F-measure: " + str(f)) #corrected from print("F-measure: " + str(a))
 
+        candidate_answers = np.array(candidate_answers)
+        detailedRes = np.stack((candidate_answers[true_class],candidate_answers[pred_class]),axis=1)
+        np.save('_'.join([self.valResultsPath,'detailed_predictions.npy']), detailedRes)
+
+
+def main(argv):
+    parser = argparse.ArgumentParser(description='Homework 3 QA pipeline with learning')
+    parser.add_argument("--top-cat-limit",
+                        type=int,
+                        default=50,
+                        help="Limit on the number of top categories to retain")
+    parser.add_argument("--featurizer",
+                        type=str,
+                        choices =['tfidf','count'],
+                        default='tfidf',
+                        help="Featurizer option")
+    parser.add_argument("--model",
+                        type=str,
+                        choices =['mnb','svm','mlp'],
+                        default='mnb',
+                        help="Model option")
+    parser.add_argument("--train-path",
+                        type=str,
+                        default="../datasets/quasar-s/quasar-s_train_formatted.json",
+                        help="Path to training file")
+    parser.add_argument('--valid-path', type=str,
+                        default="../datasets/quasar-s/quasar-s_dev_formatted.json",
+                        help='Path to training file')
+    parser.add_argument('--out-path', type=str,
+                        default=".",
+                        help='Path to results file')
+
+    args = parser.parse_args(argv)
+    print(args)
+
+    retrievalInstance = Retrieval()
+
+    if args.featurizer=="tfidf":
+        featurizerInstance = TfIdfFeaturizer(STOP_WORDS)
+    elif args.featurizer=="count":
+        featurizerInstance = CountFeaturizer(STOP_WORDS)
+    else:
+        raise Exception("Unknown featurizer")
+
+    if args.model=="mnb":
+        classifierInstance = MultinomialNaiveBayes()
+    elif args.model=="svm":
+        classifierInstance = SVM()
+    #elif args.model == "mlp":
+    #    classifierInstance = MLP()
+    else:
+        raise Exception("Unknown model")
+
+    outputFileStub = args.out_path+"/out_"+args.featurizer+"_"+args.model
+
+    trainInstance = Pipeline(args.train_path, args.valid_path, outputFileStub,
+                             args.top_cat_limit,
+                             retrievalInstance, featurizerInstance, classifierInstance)
 
 
 if __name__ == '__main__':
-    trainFilePath = sys.argv[1] #please give the path to your reformatted quasar-s json train file
-    valFilePath = sys.argv[2] # provide the path to val file
-    retrievalInstance = Retrieval()
-    #featurizerInstance = CountFeaturizer(STOP_WORDS)
-    featurizerInstance = TfIdfFeaturizer(STOP_WORDS)
-    classifierInstance = SVM()
-    trainInstance = Pipeline(trainFilePath, valFilePath, retrievalInstance, featurizerInstance, classifierInstance)
+    main(sys.argv[1:])
+

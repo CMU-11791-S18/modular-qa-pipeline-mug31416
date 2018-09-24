@@ -2,7 +2,6 @@ from Classifier import Classifier
 from sklearn.svm import SVC
 
 
-#This is a subclass that extends the abstract class Classifier.
 class SVM(Classifier):
 
     def buildClassifier(self, X_features, Y_train):
