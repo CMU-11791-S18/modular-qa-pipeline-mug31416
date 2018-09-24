@@ -11,3 +11,6 @@ class CountFeaturizer(Featurizer):
         X_val_counts = self.count_vect.transform(X_val)
 
         return X_train_counts, X_val_counts
+
+    def getName(self):
+        return "CountFeaturizer"

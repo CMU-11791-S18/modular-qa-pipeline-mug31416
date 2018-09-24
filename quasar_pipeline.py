@@ -279,6 +279,17 @@ class Pipeline(object):
         print("Recall: " + str(r)) #corrected from print("Recall: " + str(a))
         print("F-measure: " + str(f)) #corrected from print("F-measure: " + str(a))
 
+
+        # Output files for further analysis
+        with open('_'.join([self.valResultsPath,'summary_predictions.txt']), 'w') as file:
+            file.write("Features" + "\t" + "Classifier" + "\t"
+                    + "Accuracy" + "\t" + "Precision" + "\t"
+                    + "Recall" + "\t" + "F-measure" + "\n")
+            file.write(self.featurizerInstance.getName() + "\t" + self.classifierInstance.getName() + "\t"
+                    + str(a) + "\t" + str(p) + "\t"
+                    + str(r) + "\t" + str(f) + "\n")
+
+
         candidate_answers = np.array(candidate_answers)
         detailedRes = np.stack((candidate_answers[true_class],candidate_answers[pred_class]),axis=1)
         np.save('_'.join([self.valResultsPath,'detailed_predictions.npy']), detailedRes)

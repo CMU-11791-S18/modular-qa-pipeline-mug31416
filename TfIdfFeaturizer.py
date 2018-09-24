@@ -9,3 +9,6 @@ class TfIdfFeaturizer(Featurizer):
         X_train_counts = self.tfidf_vect.fit_transform(X_train)
         X_val_counts = self.tfidf_vect.transform(X_val)
         return X_train_counts, X_val_counts
+
+    def getName(self):
+        return "TfIdfFeaturizer"
