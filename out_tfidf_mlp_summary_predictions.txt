@@ -1,0 +1,2 @@
+Features	Classifier	Accuracy	Precision	Recall	F-measure
+TfIdfFeaturizer	MLP	0.0774131889137	0.0336043736519	0.0774131889137	0.0452785239192

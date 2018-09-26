@@ -95,8 +95,10 @@ class Pipeline(object):
 
     @staticmethod
     def computeOccurQty(needle, haystack):
+        '''
+        Helper function to confirm that answer candidate is contained in the string
+        '''
         tmp = re.findall(r'\b'+needle+r'\b', haystack)
-
         return len(tmp)
 
     @staticmethod
@@ -151,15 +153,19 @@ class Pipeline(object):
                 print(quest_id, '===>', answer)
 
             skip_flag = False
+
+            # If instance is training and answer is not frequent then remove
+            # the question from training set and skip rest of processing
             if is_train:
                 if not answer in freq_answ:
                     if self.debug:
                         print('Skipping non-frequent answer: %s' % answer)
                     skip_flag=True
 
+            # Process data if test instance or if train instance + frequent answer
             if not skip_flag:
-                # clean all text
                 query_clean = Pipeline.cleanText(query)
+
                 if snippets is None:
                     if self.debug:
                         print('Using no snippets')
@@ -181,7 +187,6 @@ class Pipeline(object):
     # 2) outputs results tables
     def question_answering(self):
 
-        dataset_type = self.trainData['origin']
         candidate_answers = self.trainData['candidates']
         cand_qty = len(candidate_answers)
 
@@ -213,22 +218,22 @@ class Pipeline(object):
         if self.debug:
             print('Top %d sum %g freq answ set qty %d' % (self.top, s, len(freq_answ)))
 
-        X_train, Y_train = self.makeXY(self.trainData['questions'][0:10000], freq_answ, is_train=True)
-        X_val, Y_val_true = self.makeXY(self.valData['questions'][0:500], freq_answ, is_train=False)
+        X_train, Y_train = self.makeXY(self.trainData['questions'], freq_answ, is_train=True)
+        X_val, Y_val_true = self.makeXY(self.valData['questions'], freq_answ, is_train=False)
 
         # featurization
         X_features_train, X_features_val = self.featurizerInstance.getFeatureRepresentation(X_train, X_val)
         self.clf = self.classifierInstance.buildClassifier(X_features_train, Y_train)
 
         # Prediction
-        # Added processing steps to convert from binary to multi-class prediction representation
         Y_val_pred = self.clf.predict(X_features_val)
+
+        # Conversion to numpy arrays to support relative performance analysis
         pred_class = np.array(Y_val_pred)
         true_class = np.array(Y_val_true)
 
         if self.debug:
             print('X_features_val.shape:', X_features_val.shape)
-
             print(pred_class)
             print(true_class)
             print(np.mean(true_class == pred_class))
@@ -242,7 +247,6 @@ class Pipeline(object):
         print("Recall: " + str(r)) #corrected from print("Recall: " + str(a))
         print("F-measure: " + str(f)) #corrected from print("F-measure: " + str(a))
 
-
         # Output files for further analysis
         with open('_'.join([self.valResultsPath,'summary_predictions.txt']), 'w') as file:
             file.write("Features" + "\t" + "Classifier" + "\t"
@@ -254,6 +258,7 @@ class Pipeline(object):
 
         detailedRes = np.stack([true_class, pred_class], axis=1)
         np.save('_'.join([self.valResultsPath,'detailed_predictions.npy']), detailedRes)
+        np.save('_'.join([self.valResultsPath,'top_categories.npy']), np.array(list(freq_answ)))
 
 
 def main(argv):

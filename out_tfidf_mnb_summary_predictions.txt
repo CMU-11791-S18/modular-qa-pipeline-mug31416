@@ -1,0 +1,2 @@
+Features	Classifier	Accuracy	Precision	Recall	F-measure
+TfIdfFeaturizer	MultinomialNaiveBayes	0.0735903153871	0.0636571609052	0.0735903153871	0.0337768692558

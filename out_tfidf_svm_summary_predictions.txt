@@ -1,0 +1,2 @@
+Features	Classifier	Accuracy	Precision	Recall	F-measure
+TfIdfFeaturizer	SVM	0.125836253584	0.0600563714103	0.125836253584	0.0706010243719

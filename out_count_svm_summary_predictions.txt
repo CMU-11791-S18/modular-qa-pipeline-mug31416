@@ -1,0 +1,2 @@
+Features	Classifier	Accuracy	Precision	Recall	F-measure
+CountFeaturizer	SVM	0.0691302962727	0.0338025430372	0.0691302962727	0.0430317952031
