@@ -1,0 +1,2 @@
+Features	Classifier	Accuracy	Precision	Recall	F-measure
+CountFeaturizer	MLP	0.0799617712647	0.0370444700711	0.0799617712647	0.0479287302355
